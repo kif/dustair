@@ -1,0 +1,3 @@
+This directory contains some code used for the first prototype of Dust'Air based on the Raspberry-Pi B2 board.
+
+All code is Python3.5
