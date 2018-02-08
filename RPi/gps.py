@@ -5,8 +5,11 @@
 from collections import namedtuple
 import time
 import threading
-import serial, pynmea2
-Position = namedtuple("Position", ["lat", "lat_dir", "lon", "lon_dir"])
+import logging
+import serial 
+import pynmea2
+logger = logging.getLogger(__name__)
+Position = namedtuple("Position", ["lat_dir", "lat", "lon_dir", "lon" ])
 
 class GPS(threading.Thread):
     "A class recieving continusly  GPS data and serving the latest ones"
@@ -20,34 +23,33 @@ class GPS(threading.Thread):
             self.quit_event = quit_event
         else:
             self.quit_event = threading.Event()
-        threading.Thread.__init__(self, name="DHT")
+        threading.Thread.__init__(self, name="GPS")
 
     def run(self):
         "poll the device"
         while not self.quit_event.is_set():
             try:
                 for msg in self.stream.next():
-                    if msg.__class__.__name__ == "RMC":
+                    name = msg.__class__.__name__
+                    if  name == "RMC":
                         self.date = msg.datestamp
+                    if name in ("GGA", "GLL", "RMC"):
                         self.time = msg.timestamp
-                        self.position = Position(msg.lat_dir, float(msg.lat), msg.lon_dir, float(msg.lon))
-            except ParseError as e:
-                logger.info("ParseError %s", e)
+                        try:
+                            self.position = Position(msg.lat_dir, float(msg.lat), msg.lon_dir, float(msg.lon))
+                        except Exception as e:
+                            logger.info("%s: %s, %s",e.__class__.__name__, e, msg)
+                    
+            except pynmea2.nmea.ParseError as e:
+                logger.info("ParseError: %s", e)
                 
-            if (values[0] or values[1]) is not None:
-                self.last_value = HumidityTemparture(*values)
-
-gps = serial.Serial('/dev/ttyAMA0')
-streamreader = pynmea2.NMEAStreamReader(gps)
-valid = ["GGA", "ZDA","GLL"]
-while 1:
-        for msg in streamreader.next():
-                    if msg.__class__.__name__ in valid:
-                                    print(msg)
-                                    while 1:
-                                            for msg in streamreader.next():
-                                                        if msg.__class__.__name__ in valid:
-                                                                        print(msg)
-                                                                        %histor
-                                                                        %history
-
+    def get(self, what=None):
+        if what == "header":
+            return "  Latitude  Longitude"
+        elif what == "unit":
+            return Position("lat_dir", "lat", "lon_dir", "lon")
+        elif what == "text":
+            if self.position:
+                return "%1s%9.4f %s%9.4f"%self.position
+        else:
+            return self.position
