@@ -50,6 +50,6 @@ class GPS(threading.Thread):
             return Position("lat_dir", "lat", "lon_dir", "lon")
         elif what == "text":
             if self.position:
-                return "%1s%9.4f %s%9.4f"%self.position
+                return "%1s%9.4f %1s%9.4f"%self.position
         else:
             return self.position

@@ -36,7 +36,8 @@ class DHT(threading.Thread):
         elif what == "unit":
             return HumidityTemparture("%", "°C")
         elif what == "text":
-            return "   %5.1f      %6.1f"%self.last_value
+            if self.last_value:
+                return "   %5.1f      %6.1f"%self.last_value
         else:
             return self.last_value
-	
+    
