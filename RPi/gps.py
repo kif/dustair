@@ -9,7 +9,7 @@ import logging
 import serial 
 import pynmea2
 logger = logging.getLogger(__name__)
-Position = namedtuple("Position", ["lat_dir", "lat", "lon_dir", "lon" ])
+Position = namedtuple("Position", ["Latitude", "Longitude" ])
 
 class GPS(threading.Thread):
     "A class recieving continusly  GPS data and serving the latest ones"
@@ -36,7 +36,13 @@ class GPS(threading.Thread):
                     if name in ("GGA", "GLL", "RMC"):
                         self.time = msg.timestamp
                         try:
-                            self.position = Position(msg.lat_dir, float(msg.lat), msg.lon_dir, float(msg.lon))
+                            lat = int(msg.lat[:2]) + float(msg.lat[2:])/60.
+                            if msg.lat_dir == "S":
+                                lat = -lat
+                            lon = int(msg.lon[:2]) + float(msg.lon[2:])/60.
+                            if msg.lon_dir == "W":
+                                lon = -lon
+                            self.position = Position(lat, lon)
                         except Exception as e:
                             logger.info("%s: %s, %s",e.__class__.__name__, e, msg)
                     
@@ -47,9 +53,10 @@ class GPS(threading.Thread):
         if what == "header":
             return "  Latitude  Longitude"
         elif what == "unit":
-            return Position("lat_dir", "lat", "lon_dir", "lon")
+            return Position("degree", "degree")
         elif what == "text":
             if self.position:
-                return "%1s%9.4f %1s%9.4f"%self.position
+                return "%10.6f %10.6f"%self.position
         else:
             return self.position
+
