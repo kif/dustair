@@ -39,7 +39,7 @@ class GPS(threading.Thread):
                             lat = int(msg.lat[:2]) + float(msg.lat[2:])/60.
                             if msg.lat_dir == "S":
                                 lat = -lat
-                            lon = int(msg.lon[:2]) + float(msg.lon[2:])/60.
+                            lon = int(msg.lon[:3]) + float(msg.lon[3:])/60.
                             if msg.lon_dir == "W":
                                 lon = -lon
                             self.position = Position(lat, lon)
