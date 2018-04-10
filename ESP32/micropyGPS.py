@@ -266,6 +266,10 @@ class MicropyGPS(object):
         """Parse Geographic Latitude and Longitude (GLL)Sentence. Updates UTC timestamp, latitude,
         longitude, and fix status"""
 
+        if len(self.gps_segments) < 6:
+            self._latitude = (0, 0.0, 'N')
+            self._longitude = (0, 0.0, 'W')
+            self.valid = False
         # UTC Timestamp
         try:
             utc_string = self.gps_segments[5]
@@ -480,6 +484,7 @@ class MicropyGPS(object):
         else:
             sat_segment_limit = 20  # Non-last sentences have 4 satellites and thus read up to position 20
 
+        sat_segment_limit = min(sat_segment_limit, len(self.gps_segments) - 3)
         # Try to recover data for up to 4 satellites in sentence
         for sats in range(4, sat_segment_limit, 4):
 
@@ -487,22 +492,22 @@ class MicropyGPS(object):
             if self.gps_segments[sats]:
                 try:
                     sat_id = int(self.gps_segments[sats])
-                except ValueError:
+                except (ValueError, IndexError):
                     return False
 
                 try:  # elevation can be null (no value) when not tracking
                     elevation = int(self.gps_segments[sats + 1])
-                except ValueError:
+                except (ValueError, IndexError):
                     elevation = None
 
                 try:  # azimuth can be null (no value) when not tracking
                     azimuth = int(self.gps_segments[sats + 2])
-                except ValueError:
+                except (ValueError, IndexError):
                     azimuth = None
 
                 try:  # SNR can be null (no value) when not tracking
                     snr = int(self.gps_segments[sats + 3])
-                except ValueError:
+                except (ValueError, IndexError):
                     snr = None
 
             # If no PRN is found, then the sentence has no more satellites to read
@@ -624,7 +629,25 @@ class MicropyGPS(object):
         try:
             self.fix_time = time.ticks_ms()
         except (NameError, AttributeError):
-            self.fix_time = time.time()
+            self.fix_time = time.time() * 1000
+
+    @property
+    def time(self):
+        "provide the current time-stamp"
+        seconds = self.time_since_fix() / 1000.0 + self.timestamp[2]
+        if seconds >= 60:
+            minutes = self.timestamp[1] + seconds // 60
+            seconds = seconds % 60
+        else:
+            minutes = self.timestamp[1]
+        if minutes >= 60:
+            hour = self.timestamp[0] + minutes // 60
+            minutes = minutes % 60
+        else:
+            hour = self.timestamp[0]
+        if hour > 24:
+            hour = hour % 24
+        return (hour, minutes, seconds)
 
     #########################################
     # User Helper Functions
@@ -660,7 +683,7 @@ class MicropyGPS(object):
         try:
             current = time.ticks_diff(time.ticks_ms(), self.fix_time)
         except (NameError, AttributeError):
-            current = 1000 * (time.time() - self.fix_time)
+            current = 1000 * time.time() - self.fix_time
 
         return current
 

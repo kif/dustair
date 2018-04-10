@@ -1,16 +1,23 @@
 # Main program executed by micropython
 
-from machine import Timer
+from machine import Timer, Pin
 from gps import GPS
 from sds import SDS
-# led = machine.Pin(16, machine.Pin.OUT)
-# led.value(0)
+
+led = Pin(16, Pin.OUT)
+led.value(0)
 gps = GPS(2, 9600)
 sds = SDS(1)
 
+def update_all(*arg, **kwarg):
+    led.value(1)
+    sds.update()
+    gps.update()
+    led.value(0)
 
-timer_gps = Timer(-1)
-timer_gps.init(period=1000,  # every second
-               mode=Timer.PERIODIC,
-               callback=lambda t: [i.quick_update() for i in (gps, sds)]
-               )
+update_all()
+
+timer = Timer(-1)
+timer.init(period=1000,  # every second
+           mode=Timer.PERIODIC,
+           callback=update_all)

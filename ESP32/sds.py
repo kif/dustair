@@ -1,4 +1,3 @@
-import time
 from machine import UART
 from collections import namedtuple
 Dust = namedtuple("Dust", ["PM2_5", "PM10"])
@@ -10,9 +9,13 @@ class SDS:
         self.serial = UART(port, 9600)
         self.buffer_size = buffer_size
         self.buffer = bytearray(self.buffer_size)
-        # Implement a dummy semaphore
-        self.busy = 0  # set to 1 on quick_update and 2 in update
+        self.cnt = 0
+        # Implement a dummy lock
+        self.busy = 0  # set to lock
         self.last_value = None
+
+    def __repr__(self):
+        return "SDS sensor at %s" % self.get()
 
     def parse_datagram(self, start, end):
         for i in range(start, end - 10):
@@ -27,13 +30,14 @@ class SDS:
                     self.last_value = Dust((data1 + data2 * 256) / 10.0,
                                            (data3 + data4 * 256) / 10.0)
                     return i + 10
+        return end - 10
 
     def quick_update(self):
         if self.busy:
             return
         else:
             self.busy = 2
-
+        self.cnt += 1
         if self.serial.any():
             l = self.serial.readinto(self.buffer)
             start = 0
@@ -41,6 +45,7 @@ class SDS:
                 start = self.parse_datagram(start, l)
         self.busy = 0
 
+    update = quick_update
 
     def get(self, what=None):
         if what == "header":
