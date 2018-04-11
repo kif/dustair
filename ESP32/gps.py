@@ -1,14 +1,17 @@
+import time
 from machine import UART
 import micropyGPS
 from collections import namedtuple
 Position = namedtuple("Position", ["Latitude", "Longitude" ])
+
+NO_POSITION = Position(0.0, 0.0)
 
 class GPS:
     "A class receiving GPS data and serving the latest ones"
     def __init__(self, port=2, speed=9600, led=None):
         self.serial = UART(port, 9600)
         self.led = led
-        self.gps = micropyGPS.MicropyGPS(1, "dd")
+        self.gps = micropyGPS.MicropyGPS(2, "dd")
         self.buffer = bytearray(1024)
         self.cnt = 0
         # Implement a dummy semaphore
@@ -23,7 +26,8 @@ class GPS:
 
     @property
     def date(self):
-        return "20" + self.gps.date_string("s_dmy").replace("/", "-")
+        t = self.gps.date
+        return "20%02i-%02i-%02i" % (t[2], t[1], t[0])
 
     @property
     def position(self):
@@ -39,7 +43,7 @@ class GPS:
             lon = lon[0]
         return Position(lat, lon)
 
-    def update(self):
+    def quick_update(self):
         if self.busy:
             return
         else:
@@ -62,14 +66,31 @@ class GPS:
                     for i in range(start, stop + 1):
                         self.gps.update(chr(self.buffer[i]))
                 except Exception as error:
-                    print("Error %s on datagram\n %s" % (error, bytes(self.buffer[start:stop])))
+                    # print("GPS: Error %s on datagram\n %s" % (error, bytes(self.buffer[start:stop])))
+                    self.busy = 0
                     raise error
+
             if self.led is not None:
                 self.led.value(0)
         self.busy = 0
 
+    def update(self, timeout=10000, verbose=True):
+        start = time.ticks_ms()
+        while not self.serial.any():
+            if time.ticks_diff(time.ticks_ms(), start) > timeout:
+                if verbose:
+                    print("GPS: timeout")
+                break
+            else:
+                time.sleep_ms(10)
+        else:
+            self.quick_update()
+            if verbose:
+                print("GPS updated")
+
+
     def get(self, what=None):
-        self.update()
+        self.quick_update()
         if what == "header":
             return "  Latitude  Longitude"
         elif what == "unit":
@@ -77,6 +98,6 @@ class GPS:
         elif what == "text":
             position = self.position
             if position is not None:
-                return "%10.6f %10.6f" % position
+                return "%10.6f %10.6f" % (position[0], position[1])
         else:
             return self.position

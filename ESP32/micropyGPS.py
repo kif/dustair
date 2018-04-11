@@ -253,11 +253,11 @@ class MicropyGPS(object):
             self.new_fix_time()
 
         else:  # Clear Position Data if Sentence is 'Invalid'
-            self._latitude = (0, 0.0, 'N')
-            self._longitude = (0, 0.0, 'W')
-            self.speed = (0.0, 0.0, 0.0)
-            self.course = 0.0
-            self.date = (0, 0, 0)
+            # self._latitude = (0, 0.0, 'N')
+            # self._longitude = (0, 0.0, 'W')
+            # self.speed = (0.0, 0.0, 0.0)
+            # self.course = 0.0
+            # self.date = (0, 0, 0)
             self.valid = False
 
         return True
@@ -267,9 +267,10 @@ class MicropyGPS(object):
         longitude, and fix status"""
 
         if len(self.gps_segments) < 6:
-            self._latitude = (0, 0.0, 'N')
-            self._longitude = (0, 0.0, 'W')
+            # self._latitude = (0, 0.0, 'N')
+            # self._longitude = (0, 0.0, 'W')
             self.valid = False
+            return False
         # UTC Timestamp
         try:
             utc_string = self.gps_segments[5]
@@ -319,8 +320,8 @@ class MicropyGPS(object):
             self.new_fix_time()
 
         else:  # Clear Position Data if Sentence is 'Invalid'
-            self._latitude = (0, 0.0, 'N')
-            self._longitude = (0, 0.0, 'W')
+            # self._latitude = (0, 0.0, 'N')
+            # self._longitude = (0, 0.0, 'W')
             self.valid = False
 
         return True
@@ -365,7 +366,7 @@ class MicropyGPS(object):
             # Get Fix Status
             fix_stat = int(self.gps_segments[6])
 
-        except ValueError:
+        except (ValueError, IndexError):
             return False
 
         # Process Location and Speed Data if Fix is GOOD
@@ -384,7 +385,7 @@ class MicropyGPS(object):
                 lon_degs = int(l_string[0:3])
                 lon_mins = float(l_string[3:])
                 lon_hemi = self.gps_segments[5]
-            except ValueError:
+            except (ValueError, IndexError):
                 return False
 
             if lat_hemi not in self.__HEMISPHERES:
@@ -397,7 +398,7 @@ class MicropyGPS(object):
             try:
                 altitude = float(self.gps_segments[9])
                 geoid_height = float(self.gps_segments[11])
-            except ValueError:
+            except (ValueError, IndexError):
                 return False
 
             # Update Object Data
@@ -426,7 +427,7 @@ class MicropyGPS(object):
         # Fix Type (None,2D or 3D)
         try:
             fix_type = int(self.gps_segments[2])
-        except ValueError:
+        except (ValueError, IndexError):
             return False
 
         # Read All (up to 12) Available PRN Satellite Numbers
@@ -447,7 +448,7 @@ class MicropyGPS(object):
             pdop = float(self.gps_segments[15])
             hdop = float(self.gps_segments[16])
             vdop = float(self.gps_segments[17])
-        except ValueError:
+        except (ValueError, IndexError):
             return False
 
         # Update Object Data

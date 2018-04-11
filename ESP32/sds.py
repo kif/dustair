@@ -1,3 +1,4 @@
+import time
 from machine import UART
 from collections import namedtuple
 Dust = namedtuple("Dust", ["PM2_5", "PM10"])
@@ -30,6 +31,10 @@ class SDS:
                     self.last_value = Dust((data1 + data2 * 256) / 10.0,
                                            (data3 + data4 * 256) / 10.0)
                     return i + 10
+#                 else:
+#                     print("SDS: checksum error")
+#             else:
+#                 print("SDS: no data found in %s" % (bytes(self.buffer[start:end])))
         return end - 10
 
     def quick_update(self):
@@ -45,15 +50,29 @@ class SDS:
                 start = self.parse_datagram(start, l)
         self.busy = 0
 
-    update = quick_update
+    def update(self, timeout=10000, verbose=True):
+        start = time.ticks_ms()
+        while not self.serial.any():
+            if time.ticks_diff(time.ticks_ms(), start) > timeout:
+                if verbose:
+                    print("SDS: timeout")
+                break
+            else:
+                time.sleep_ms(10)
+        else:
+            self.quick_update()
+            if verbose:
+                print("SDS updated")
 
     def get(self, what=None):
+        self.quick_update()
         if what == "header":
             return " PM2.5   PM10"
         elif what == "unit":
             return "Dust", ["PM2.5 (µg/m³)", "PM10 (µg/m³)"]
         elif what == "text":
-            if self.last_value:
-                return "%6.1f %6.1f" % self.last_value
+            value = self.last_value
+            if value:
+                return "%6.1f %6.1f" % (value[0], value[1])
         else:
             return self.last_value
