@@ -22,7 +22,7 @@ class GPS:
 
     @property
     def time(self):
-        return self.gps.time
+        return "%02i:%02i:%06.3f" % self.gps.time
 
     @property
     def date(self):

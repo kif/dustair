@@ -28,14 +28,14 @@ try:
 except OSError:
     pass
 
-print("Wait for data to come from the GPS and from the SDS")
-NoPos = gps
-while True:
-    time.sleep_ms(100)
-    update_all()
-    if (sds.last_value is not None) and (gps.get() != NO_POSITION) and (gps.date != "2000-00-00"):
-        print("GPS and SDS initialized")
-        break
+def wait_data():
+    print("Wait for data to come from the GPS and from the SDS")
+    while True:
+        time.sleep_ms(10)
+        update_all()
+        if (sds.last_value is not None) and (gps.position != NO_POSITION) and (gps.date != "2000-00-00"):
+            print("GPS and SDS initialized")
+            break
 
 def main():
     linesep = "\n"
@@ -44,8 +44,7 @@ def main():
     base = "%s_%s.log" % (today, existing)
     print("Saving in %s" % base)
     cnt = 0
-    now = "%s:%s:%s" % (gps.time)
-    header = ["#started on %s UTC" % now,
+    header = ["#started on %s UTC" % gps.time,
               "#%8s %21s %13s" % ("Time", gps.get("header"), sds.get("header")),
               ""]
 
@@ -56,9 +55,8 @@ def main():
         update_all()
         while not quit:
             try:
-                time.sleep_ms(time.ticks_diff(now + 1000, time.ticks_ms()))
-                data = "%i:%i:%.2f %21s %13s\n" % ((gps.time + (gps.get("text"), sds.get("text"))))
-                now = time.ticks_ms()
+                data = "%12s %21s %13s\n" % (gps.time, gps.get("text"), sds.get("text"))
+                last = time.ticks_ms()
                 print(data[:-1])
                 logfile.write(data + linesep)
                 cnt += 1
@@ -66,7 +64,13 @@ def main():
                     print("Flush")
                     logfile.flush()
                 update_all()
+                while time.ticks_diff(time.ticks_ms(), last) < 1000:
+                    gps.quick_update()
+                    time.sleep_ms(100)
+                update_all()
             except KeyboardInterrupt:
                 print("Gracefully exiting")
                 quit = True
+
+wait_data()
 main()
