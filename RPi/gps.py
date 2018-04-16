@@ -35,16 +35,25 @@ class GPS(threading.Thread):
                         self.date = msg.datestamp
                     if name in ("GGA", "GLL", "RMC"):
                         self.time = msg.timestamp
-                        try:
-                            lat = int(msg.lat[:2]) + float(msg.lat[2:])/60.
+                        lat = lon = None
+                        if msg.lat:
+                            try:
+                                lat = int(msg.lat[:2]) + float(msg.lat[2:])/60.
+                            except Exception as e:
+                                logger.info("%s: %s, %s",e.__class__.__name__, e, msg)
+                                continue
                             if msg.lat_dir == "S":
                                 lat = -lat
-                            lon = int(msg.lon[:3]) + float(msg.lon[3:])/60.
+                        if msg.lon:
+                            try:
+                                lon = int(msg.lon[:3]) + float(msg.lon[3:])/60.
+                            except Exception as e:
+                                logger.info("%s: %s, %s",e.__class__.__name__, e, msg)
+                                continue
                             if msg.lon_dir == "W":
                                 lon = -lon
+                        if lat and lon:
                             self.position = Position(lat, lon)
-                        except Exception as e:
-                            logger.info("%s: %s, %s",e.__class__.__name__, e, msg)
                     
             except pynmea2.nmea.ParseError as e:
                 logger.info("ParseError: %s", e)

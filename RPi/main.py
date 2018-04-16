@@ -13,7 +13,7 @@ import time
 import datetime
 logging.basicConfig()
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARNING)
 
 from sds import SDS
 from gps import GPS

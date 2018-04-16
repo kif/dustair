@@ -1,7 +1,7 @@
 #!/home/jerome/py3/bin/python3
 
 # Simple module for reading continuously the SDS dust sensor
-
+import glob
 from collections import namedtuple
 import time
 import threading
@@ -13,8 +13,11 @@ Dust = namedtuple("Dust", ["PM2_5", "PM10"])
 
 class SDS(threading.Thread):
     "A class recieving continusly dust-sensor data and serving the latest ones"
-    def __init__(self, port="/dev/ttyUSB0", quit_event=None):
-        self.sensor = serial.Serial(port)
+    def __init__(self, port="/dev/ttyUSB", quit_event=None):
+        self.port = port
+        self.actual_port = None
+        self.sensor = None
+        self.set_port(port)
         if quit_event is not None:
             self.quit_event = quit_event
         else:
@@ -22,9 +25,34 @@ class SDS(threading.Thread):
         self.last_value = None
         threading.Thread.__init__(self, name="SDS")
 
+    def set_port(self, port=None):
+        "set the sensor to the opened port"
+        if port is None:
+            port = self.port
+        actual_port = glob.glob(port+"*")
+        actual_port.sort()
+        if not actual_port: 
+            if self.sensor is not None:
+                logger.warning("Disabling %s", self.actual_port)
+                self.sensor.close()
+                self.sensor = None
+            self.actual_port = None
+            return False
+        if actual_port[-1] != self.actual_port:
+            logger.warning("Switching from %s to %s", self.actual_port, actual_port)
+            if self.sensor is not None:
+                self.sensor.close()
+            self.actual_port = actual_port
+            self.sensor = serial.Serial(actual_port)
+            return True
+
     def run(self):
         "poll the device"
         while not self.quit_event.is_set():
+            if self.set_port() is False:
+                time.sleep(1)
+                continue
+
             raw = self.sensor.read(10)
             
             if len(raw) == 10:
