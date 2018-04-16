@@ -19,7 +19,7 @@ class SDS:
         return "SDS sensor at %s" % self.get()
 
     def parse_datagram(self, start, end):
-        for i in range(start, end - 10):
+        for i in range(start, end - 9):
             b = self.buffer[i]
             c = self.buffer[i + 1]
             e = self.buffer[i + 9]
@@ -35,7 +35,7 @@ class SDS:
 #                     print("SDS: checksum error")
 #             else:
 #                 print("SDS: no data found in %s" % (bytes(self.buffer[start:end])))
-        return end - 10
+        return end - 9
 
     def quick_update(self):
         if self.busy:
@@ -46,7 +46,7 @@ class SDS:
         if self.serial.any():
             l = self.serial.readinto(self.buffer)
             start = 0
-            while start < l - 10:
+            while start <= l - 10:
                 start = self.parse_datagram(start, l)
         self.busy = 0
 

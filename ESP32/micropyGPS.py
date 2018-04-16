@@ -637,17 +637,17 @@ class MicropyGPS(object):
         "provide the current time-stamp"
         seconds = self.time_since_fix() / 1000.0 + self.timestamp[2]
         if seconds >= 60:
-            minutes = self.timestamp[1] + seconds // 60
-            seconds = seconds % 60
+            minutes = int(self.timestamp[1] + seconds // 60)
+            seconds %= 60
         else:
             minutes = self.timestamp[1]
         if minutes >= 60:
-            hour = self.timestamp[0] + minutes // 60
-            minutes = minutes % 60
+            hour = int(self.timestamp[0] + minutes // 60)
+            minutes %= 60
         else:
             hour = self.timestamp[0]
         if hour > 24:
-            hour = hour % 24
+            hour %= 24
         return (hour, minutes, seconds)
 
     #########################################

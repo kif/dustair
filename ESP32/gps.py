@@ -72,7 +72,10 @@ class GPS:
 
             if self.led is not None:
                 self.led.value(0)
+        else:
+            l = 0
         self.busy = 0
+        return l
 
     def update(self, timeout=10000, verbose=True):
         start = time.ticks_ms()
