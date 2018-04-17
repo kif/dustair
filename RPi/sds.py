@@ -42,9 +42,27 @@ class SDS(threading.Thread):
             logger.warning("Switching from %s to %s", self.actual_port, actual_port)
             if self.sensor is not None:
                 self.sensor.close()
-            self.actual_port = actual_port
-            self.sensor = serial.Serial(actual_port)
+            self.actual_port = actual_port[-1]
+            self.sensor = serial.Serial(self.actual_port)
             return True
+
+    def parse(self, raw):
+        "parse a datagram, sets the value and returns True when OK"
+        if len(raw) == 10:
+            dec = [int(i) for i in raw]
+            valid = ((dec[0] == 170) and
+                     (dec[1] == 192) and
+                     (dec[9] == 171))
+            if valid:
+                if (sum(dec[2:8])%256 == dec[8]):
+                    self.last_value = Dust((dec[2] + dec[3]*256)/10., 
+                                           (dec[4] + dec[5]*256)/10.)
+                    return True
+            else:
+                logger.warning("Checksum error")
+                return
+        else:
+            return False
 
     def run(self):
         "poll the device"
@@ -53,28 +71,18 @@ class SDS(threading.Thread):
                 time.sleep(1)
                 continue
 
-            raw = self.sensor.read(10)
-            
-            if len(raw) == 10:
-                dec = [int(i) for i in raw]
-                valid = ((dec[0] == 170) and
-                         (dec[1] == 192) and
-                         (dec[9] == 171))
-                if valid:
-                    if (sum(dec[2:8])%256 == dec[8]):
-                        self.last_value = Dust((dec[2] + dec[3]*256)/10., 
-                                               (dec[4] + dec[5]*256)/10.)
-                else:
-                    logger.warning("Checksum error")
-            else:
-                valid = False
-            if not valid:
+            try:
+                raw = self.sensor.read(10)
+            except:
+                continue
+            valid = self.parse(raw)
+            if valid is False:
                 logger.warning("Invalid datagram: %s", [int(i) for i in raw])
                 #Read until next \xaa
                 ch = self.sensor.read(1)
                 while ch != b"\xaa":
                     ch = self.sensor.read(1)
-                self.sensor.read(9)
+                self.parse(ch+self.sensor.read(9))
 
     def get(self, what=None):
         if what == "header":
