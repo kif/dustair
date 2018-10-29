@@ -1,71 +1,70 @@
-import time
-from machine import UART
+try:
+    import uasyncio as asyncio
+except ImportError:
+    import asyncio
+
+try:
+    from micropython import const
+except ImportError:
+    const = lambda x : x
+
 from collections import namedtuple
 Dust = namedtuple("Dust", ["PM2_5", "PM10"])
 
+
+
+# port=1, baud=9600
 class SDS:
     "A class receiving particule measurement from SDS sensor"
-    def __init__(self, port=1, buffer_size=1024):
-
-        self.serial = UART(port, 9600)
-        self.buffer_size = buffer_size
-        self.buffer = bytearray(self.buffer_size)
-        self.cnt = 0
-        # Implement a dummy lock
-        self.busy = 0  # set to lock
+    def __init__(self, sreader, callback=None):
+        """
+        :param sreader: async UART reader
+        :param callback: to be called every update
+        """
+        self._sreader = sreader
+        self._callback = callback
         self.last_value = None
+        # Received status
+        self._valid = 0  # Bitfield of received sentences
+        if sreader is not None:  # Running with UART data
+            loop = asyncio.get_event_loop()
+            loop.create_task(self._run(loop))
 
     def __repr__(self):
         return "SDS sensor at %s" % self.get()
 
-    def parse_datagram(self, start, end):
-        for i in range(start, end - 9):
-            b = self.buffer[i]
-            c = self.buffer[i + 1]
-            e = self.buffer[i + 9]
+    ##########################################
+    # Data Stream Handler Functions
+    ##########################################
+
+    async def _run(self, loop):
+        while True:
+            res = await self._sreader.read()
+            loop.create_task(self._update(res))
+            await asyncio.sleep(0)  # Ensure task runs and res is copied
+
+    async def _update(self, datagram):
+        l = len(datagram)
+        i = 0
+        while i + 9 < l:
+            b = datagram[i]
+            c = datagram[i + 1]
+            e = datagram[i + 9]
             if (b == 170) and (c == 192) and (e == 171):
                 # likely a datagram
-                data1, data2, data3, data4, data5, data6 = self.buffer[i + 2:i + 8]
-                if (data1 + data2 + data3 + data4 + data5 + data6) % 256 == self.buffer[i + 8]:
+                data1, data2, data3, data4, data5, data6 = datagram[i + 2:i + 8]
+                if (data1 + data2 + data3 + data4 + data5 + data6) % 256 == datagram[i + 8]:
                     # Yes it is a valid datagram
                     self.last_value = Dust((data1 + data2 * 256) / 10.0,
                                            (data3 + data4 * 256) / 10.0)
-                    return i + 10
-#                 else:
-#                     print("SDS: checksum error")
-#             else:
-#                 print("SDS: no data found in %s" % (bytes(self.buffer[start:end])))
-        return end - 9
-
-    def quick_update(self):
-        if self.busy:
-            return
-        else:
-            self.busy = 2
-        self.cnt += 1
-        if self.serial.any():
-            l = self.serial.readinto(self.buffer)
-            start = 0
-            while start <= l - 10:
-                start = self.parse_datagram(start, l)
-        self.busy = 0
-
-    def update(self, timeout=10000, verbose=True):
-        start = time.ticks_ms()
-        while not self.serial.any():
-            if time.ticks_diff(time.ticks_ms(), start) > timeout:
-                if verbose:
-                    print("SDS: timeout")
-                break
-            else:
-                time.sleep_ms(10)
-        else:
-            self.quick_update()
-            if verbose:
-                print("SDS updated")
+                    if callable(self._callback):
+                        self._callback(self.last_value)
+                    i += 10
+                else:
+                    i += 1
+            await asyncio.sleep(0)
 
     def get(self, what=None):
-        self.quick_update()
         if what == "header":
             return " PM2.5   PM10"
         elif what == "unit":

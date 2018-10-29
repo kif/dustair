@@ -1,79 +1,101 @@
 # Main program executed by micropython
 
-import os, time
-from machine import Timer, Pin
-from gps import GPS, NO_POSITION
+import os
+import uasyncio as asyncio
+
+from machine import UART, RTC
+from esp32 import raw_temperature
 from sds import SDS
+from as_GPS import AS_GPS
+from collections import namedtuple
+Position = namedtuple("Position", ["Latitude", "Longitude" ])
+Time = namedtuple("Time", ["Hour", "Minute", "second" ])
 
-led = Pin(16, Pin.OUT)
-led.value(0)
-gps = GPS(2, 9600)
-sds = SDS(1)
-poll_delay = 200  # ms
+uart_gps = UART(2, 9600)
+uart_sds = UART(1, 9600)
+sreader_gps = asyncio.StreamReader(uart_gps)  # Create a StreamReader
+sreader_sds = asyncio.StreamReader(uart_sds)  # Create a StreamReader
+from gps import GPS
+# gps = AS_GPS(sreader_gps, local_offset=1)  # Instantiate GPS
+gps = GPS(sreader_gps, local_offset=1, callback=print)
+sds = SDS(sreader_sds)  # Instantiate SDS
+rtc = RTC()
 
-def update_all(*arg, **kwarg):
-    led.value(1)
-    sds.quick_update()
-    gps.quick_update()
-    led.value(0)
+def log(what):
+    print("{4}:{5}:{6} ".format(*rtc.datetime()) + what)
 
-sds.update()
-gps.update()
-update_all()
-
-# try:
-#     timer = Timer(-1)
-#     timer.init(period=1000,  # every second
-#                mode=Timer.PERIODIC,
-#                callback=update_all)
-# except OSError:
-#     pass
-
-def wait_data():
-    print("Wait for data to come from the GPS and from the SDS")
-    sync = (sds.last_value is not None) and (gps.position != NO_POSITION) and (gps.date != "2000-00-00")
-    while not sync:
-        time.sleep_ms(poll_delay)
-        update_all()
-        print(sds.last_value, gps.position, gps.date)
-        sync = (sds.last_value is not None) and (gps.position != NO_POSITION) and (gps.date != "2000-00-00")
-    print("GPS and SDS initialized")
+def init_rtc():
+    date = gps.date
+    y = date[2] + 2000
+    m = date[1]
+    d = date[0]
+    wod = gps._week_day(y, m, d)
+    rtc.datetime((y, m, d, wod) + gps.local_time + (0,))
 
 
-def main():
-    linesep = "\n"
-    today = gps.date
+def get_temprature(what=None):
+    if what == "header":
+        return " Temp."
+    elif what == "unit":
+        return "degreeC"
+    elif what == "text":
+        C = (raw_temperature() - 32) / 1.8
+        return "%5.2f" % C
+    else:
+        C = (raw_temperature() - 32) / 1.8
+
+
+def get_logfilename():
+    today = "20{2}-{1}-{0}".format(*gps.date)
     existing = len([1 for i in os.listdir() if i.startswith(today)])
-    base = "%s_%s.log" % (today, existing)
-    print("Saving in %s" % base)
-    cnt = 0
-    header = ["#started on %s UTC" % gps.time,
-              "#%8s %21s %13s" % ("Time", gps.get("header"), sds.get("header")),
+    logfilename = "{}_{}.log".format(today, existing)
+    return logfilename
+
+def get_gps(what=None):
+    if what == "header":
+        return "  Latitude  Longitude"
+    elif what == "unit":
+        return Position("degree", "degree")
+    elif what == "text":
+        return "%10.6f %10.6f" % (gps.latitude()[0], gps.longitude()[0])
+    else:
+        return Position(gps.latitude()[0], gps.longitude()[0])
+
+def get_time(what=None):
+    if what == "header":
+        return "Time"
+    elif what == "unit":
+        return "HH:MM:SS"
+    elif what == "text":
+        return "{4}:{5}:{6}".format(*rtc.datetime())
+    else:
+        return rtc.datetime()[4:7]
+
+async def gps_synchro():
+    await gps.data_received(position=True)
+
+
+async def disk_logger():
+    base = get_logfilename()
+    log("Saving in %s" % base)
+    header = ["#started on {0}-{1}-{2} {4}:{5}:{6}".format(*rtc.datetime()),
+              "#%8s %21s %13s %6s" % (get_time("header"), get_gps("header"), sds.get("header"), get_temprature("header")),
               ""]
-
+    await asyncio.sleep(0)
+    cnt = 0
     with open(base, "w") as logfile:
-        logfile.write(linesep.join(header))
-        quit = False
-        now = time.ticks_ms()
-        update_all()
-        while not quit:
-            try:
-                data = "%12s %21s %13s\n" % (gps.time, gps.get("text"), sds.get("text"))
-                last = time.ticks_ms()
-                print(data[:-1])
-                logfile.write(data + linesep)
-                cnt += 1
-                if cnt % 60 == 0:
-                    print("Flush")
-                    logfile.flush()
-                while time.ticks_diff(time.ticks_ms(), last) < 1000:
-                    gps.quick_update()
-                    # 200ms -> 700 bytes, fits in the buffer !
-                    time.sleep_ms(poll_delay)
-                # update_all()
-            except KeyboardInterrupt:
-                print("Gracefully exiting")
-                quit = True
+        logfile.write("\n".join(header))
+        while True:
+            data = "%12s %21s %13s %6s\n" % (get_time("text"), get_gps("text"), sds.get("text"), get_temprature("text"))
+            logfile.write(data)
+            cnt += 1
+            if cnt % 60 == 0:
+                log("Flush" + data[:-1])
+                logfile.flush()
+            await asyncio.sleep(1)
 
-wait_data()
-main()
+loop = asyncio.get_event_loop()
+log("Waiting for GPS data")
+loop.run_until_complete(gps_synchro())
+init_rtc()
+loop.run_until_complete(disk_logger())
