@@ -54,16 +54,12 @@ class GPS:
         self._rtc = RTC()
         self._latitude = None
         self._longitude = None
+        self._altitude = None
         self._time_fixed = False
         # Key: currently supported NMEA sentences. Value: parse method.
-        self.supported_sentences = {'GPRMC': self._gprmc, 'GLRMC': self._gprmc,
-                                    'GPGGA': self._gpgga, 'GLGGA': self._gpgga,
-                                    # 'GPVTG': self._gpvtg, 'GLVTG': self._gpvtg,
-                                    # 'GPGSA': self._gpgsa, 'GLGSA': self._gpgsa,
-                                    # 'GPGSV': self._gpgsv, 'GLGSV': self._gpgsv,
-                                    'GPGLL': self._gpgll, 'GLGLL': self._gpgll,
-                                    'GNGGA': self._gpgga, 'GNRMC': self._gprmc,
-                                    # 'GNVTG': self._gpvtg,
+        self.supported_sentences = {b'GPRMC': self._gprmc, b'GLRMC': self._gprmc, b'GNRMC': self._gprmc,
+                                    b'GPGGA': self._gpgga, b'GLGGA': self._gpgga, b'GNGGA': self._gpgga,
+                                    b'GPGLL': self._gpgll, b'GLGLL': self._gpgll, b'GNGLL': self._gpgll,
                                     }
         # Received status
         self._valid = 0  # Bitfield of received sentences
@@ -105,8 +101,7 @@ class GPS:
     async def _run(self, loop):
         while True:
             raw = await self._sreader.readline()
-            if callable(self._callback):
-                self._callback(raw)
+
             loop.create_task(self._update(raw))
             await asyncio.sleep(0)  # Ensure task runs and res is copied
 
@@ -117,9 +112,16 @@ class GPS:
         else:
             await asyncio.sleep(0)
             return
-        sentence = line.split("*")[0].split(",")
-        print(sentence[0], len(sentence))
-
+        sentence = line.split(b"*")[0].split(b",")
+        data_type = sentence[0][1:]
+        if data_type in self.supported_sentences:
+            try:
+                s_type = self.supported_sentences[data_type](sentence)  # Parse
+            except ValueError:
+                s_type = False
+            await asyncio.sleep(0)
+            if s_type and callable(self._callback):
+                self._callback(data_type.decode("utf-8"))
 
     # Data Validity. On STARtup data may be invalid. During an outage it will be absent.
     async def data_received(self, position=False, date=False):
@@ -137,7 +139,6 @@ class GPS:
 
     # 8-bit xor of characters between "$" and "*". Takes 6ms on Pyboard!
     @staticmethod
-    @timed_function
     def check_crc(line):
         crc_xor = None
         start = False
@@ -164,7 +165,6 @@ class GPS:
         return crc_xor == crc
 
     def get(self, what=None):
-        self.quick_update()
         if what == "header":
             return "  Latitude  Longitude"
         elif what == "unit":
@@ -177,12 +177,11 @@ class GPS:
             return self.position
 
     # Some internal methods for parsing the string of interest
-
     def _gpgll(self, gps_segments):  # Parse GLL sentence
         # Check Receiver Data Valid Flag
         if len(gps_segments) <= 7:
             raise ValueError
-        if gps_segments[6] != 'A':  # Invalid. Don't update data
+        if gps_segments[6] != b'A':  # Invalid. Don't update data
             raise ValueError
 
         # Data from Receiver is Valid/Has Fix. Longitude / Latitude
@@ -194,42 +193,19 @@ class GPS:
     # Chip sends rubbish RMC messages before first PPS pulse, but these have
     # data valid set to 'V' (void)
     def _gprmc(self, gps_segments):  # Parse RMC sentence
-        # Check Receiver Data Valid Flag ('A' active)
-        if not self.battery:
-            if gps_segments[2] != 'A':
-                raise ValueError
-
         # UTC Timestamp and date. Can raise ValueError.
         self._set_date_time(gps_segments[1], gps_segments[9])
         # Check Receiver Data Valid Flag ('A' active)
-        if gps_segments[2] != 'A':
+        if gps_segments[2] != b'A':
             raise ValueError
 
         # Data from Receiver is Valid/Has Fix. Longitude / Latitude
         # Can raise ValueError.
         self._fix(gps_segments, 3, 5)
-        # Speed
-        spd_knt = float(gps_segments[7])
-        # Course
-        course = float(gps_segments[8])
-        # Add Magnetic Variation if firmware supplies it
-        if gps_segments[10]:
-            mv = float(gps_segments[10])
-            if gps_segments[11] not in ('EW'):
-                raise ValueError
-            self.magvar = mv if gps_segments[11] == 'E' else -mv
-        # Update Object Data
-        self._speed = spd_knt
-        self.course = course
         self._valid |= RMC
         return RMC
 
     def _gpgga(self, gps_segments):  # Parse GGA sentence
-        self._valid &= ~GGA
-        # Number of Satellites in Use
-        satellites_in_use = int(gps_segments[7])
-        # Horizontal Dilution of Precision
-        hdop = float(gps_segments[8])
         # Get Fix Status
         fix_stat = int(gps_segments[6])
 
@@ -239,15 +215,9 @@ class GPS:
             self._fix(gps_segments, 2, 4)
             # Altitude / Height Above Geoid
             altitude = float(gps_segments[9])
-            geoid_height = float(gps_segments[11])
             # Update Object Data
-            self.altitude = altitude
-            self.geoid_height = geoid_height
+            self._altitude = altitude
             self._valid |= GGA
-
-        # Update Object Data
-        self.satellites_in_use = satellites_in_use
-        self.hdop = hdop
         return GGA
 
     # Caller traps ValueError
@@ -261,22 +231,17 @@ class GPS:
         lon_degs = int(l_string[0:3]) + float(l_string[3:]) / 60.0
         lon_hemi = gps_segments[idx_long + 1]
 
-        if lat_hemi not in 'NS'or lon_hemi not in 'EW':
+        if lat_hemi not in b'NS'or lon_hemi not in b'EW':
             raise ValueError
-        if lat_hemi == "N":
-            self._latitude = lat_degs
-        else:
-            self._latitude = -lat_degs
-        if lon_hemi == "E":
-            self._longitude = lon_degs
-        else:
-            self._longitude = -lon_degs
+
+        self._latitude = lat_degs if lat_hemi == b"N" else -lat_degs
+        self._longitude = lon_degs if lon_hemi == b"E" else -lon_degs
 
     def _set_date_time(self, utc_string, date_string):
         if not date_string or not utc_string:
             raise ValueError
         if not self._time_fixed:
-            hrs = int(utc_string[0:2])  # h
+            hrs = int(utc_string[0:2]) + self._local_offset  # h
             mins = int(utc_string[2:4])  # mins
             # Secs from MTK3339 chip is a float but others may return only 2 chars
             # for integer secs. If a float keep epoch as integer seconds and store
