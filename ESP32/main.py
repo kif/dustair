@@ -74,7 +74,6 @@ async def disk_logger():
 loop = asyncio.get_event_loop()
 log("Waiting for GPS data")
 loop.run_until_complete(gps.data_received(position=True, date=True))
-print(rtc.datetime())
 # Now only initialize the SDS
 sreader_sds = asyncio.StreamReader(uart_sds)  # Create a StreamReader
 sds = SDS(sreader_sds)  # Instantiate SDS
