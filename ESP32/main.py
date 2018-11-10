@@ -44,7 +44,7 @@ def get_time(what=None):
     elif what == "unit":
         return "HH:MM:SS"
     elif what == "text":
-        return "{4}:{5}:{6}".format(*rtc.datetime())
+        return "{4:02i}:{5:02i}:{6:02i}".format(*rtc.datetime())
     else:
         return rtc.datetime()[4:7]
 
