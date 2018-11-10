@@ -26,7 +26,7 @@ def get_temprature(what=None):
         return "degreeC"
     elif what == "text":
         C = (raw_temperature() - 32) / 1.8
-        return "%5.2f" % C
+        return "{:5.2f}".format(C)
     else:
         C = (raw_temperature() - 32) / 1.8
 
@@ -44,23 +44,23 @@ def get_time(what=None):
     elif what == "unit":
         return "HH:MM:SS"
     elif what == "text":
-        return "{4:02i}:{5:02i}:{6:02i}".format(*rtc.datetime())
+        return "{4:02d}:{5:02d}:{6:02d}".format(*rtc.datetime())
     else:
         return rtc.datetime()[4:7]
 
 
 async def disk_logger():
     base = get_logfilename()
-    log("Saving in %s" % base)
-    header = ["#started on {0}-{1}-{2} {4}:{5}:{6}".format(*rtc.datetime()),
-              "#%8s %21s %13s %6s" % (get_time("header"), gps.get("header"), sds.get("header"), get_temprature("header")),
+    log("Saving in {}".format(base))
+    header = ["#started on {0:04d}-{1:02d}-{2:02d} {4:02d}:{5:02d}:{6:02d}".format(*rtc.datetime()),
+              "#{:8s} {:21s} {:13s} {:6s}".format(get_time("header"), gps.get("header"), sds.get("header"), get_temprature("header")),
               ""]
     await asyncio.sleep(0)
     cnt = 0
     with open(base, "w") as logfile:
         logfile.write("\n".join(header))
         while True:
-            data = "%12s %21s %13s %6s\n" % (get_time("text"), gps.get("text"), sds.get("text"), get_temprature("text"))
+            data = "{:12s} {:21s} {:13s} {:6s}\n".format(get_time("text"), gps.get("text"), sds.get("text"), get_temprature("text"))
             logfile.write(data)
             cnt += 1
             if cnt % 60 == 0:

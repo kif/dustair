@@ -68,21 +68,21 @@ class GPS:
             loop.create_task(self._run(loop))
 
     def __repr__(self):
-        return "GPS object at %s" % self.get()
+        return "GPS object at {}".format(self.get())
 
     @property
     def time(self):
         if not self._time_fixed:
             print("warning: time not fixed")
         now = self._rtc.datetime()
-        return "%02i:%02i:%02i.%06i" % now[4:]
+        return "{4:02d}:{5:02d}:{6:02d}.{7:06d}".format(*now)
 
     @property
     def date(self):
         if not self._time_fixed:
             print("warning: time not fixed")
         now = self._rtc.datetime()
-        return "%04i-%02i-%02i" % now[:3]
+        return "{0:04d}-{1:02d}-{2:02d}".format(*now)
 
     @property
     def datetime(self):
@@ -172,7 +172,7 @@ class GPS:
         elif what == "text":
             position = self.position
             if position is not None:
-                return "%10.6f %10.6f" % (position[0], position[1])
+                return "{0:10.6f} {1:10.6f}".format(*position)
         else:
             return self.position
 

@@ -31,7 +31,7 @@ class SDS:
             loop.create_task(self._run(loop))
 
     def __repr__(self):
-        return "SDS sensor at %s" % self.get()
+        return "SDS sensor at {}".format(self.get())
 
     ##########################################
     # Data Stream Handler Functions
@@ -72,6 +72,6 @@ class SDS:
         elif what == "text":
             value = self.last_value
             if value:
-                return "%6.1f %6.1f" % (value[0], value[1])
+                return "{:6.1f} {:6.1f}".format(value[0], value[1])
         else:
             return self.last_value
