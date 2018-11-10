@@ -73,5 +73,7 @@ class SDS:
             value = self.last_value
             if value:
                 return "{:6.1f} {:6.1f}".format(value[0], value[1])
+            else:
+                return "  None   None"
         else:
             return self.last_value

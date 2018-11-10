@@ -16,7 +16,7 @@ gps = GPS(sreader_gps, local_offset=1)
 rtc = RTC()
 
 def log(what):
-    print("{4}:{5}:{6} ".format(*rtc.datetime()) + what)
+    print("{4:02d}:{5:02d}:{6:02d} ".format(*rtc.datetime()) + what)
 
 
 def get_temprature(what=None):
@@ -55,7 +55,7 @@ async def disk_logger():
     header = ["#started on {0:04d}-{1:02d}-{2:02d} {4:02d}:{5:02d}:{6:02d}".format(*rtc.datetime()),
               "#{:8s} {:21s} {:13s} {:6s}".format(get_time("header"), gps.get("header"), sds.get("header"), get_temprature("header")),
               ""]
-    await asyncio.sleep(0)
+    await asyncio.sleep(1)
     cnt = 0
     with open(base, "w") as logfile:
         logfile.write("\n".join(header))
