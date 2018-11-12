@@ -19,6 +19,9 @@ plusieurs jours.
 
 Les composants additionnels sont: Un recepteur GPS (cout: 8€) et un capteur de particule SDS021 (cout 18€). Vous trouverez dans le repertoire "spec" les fiches techniques de ces composants. 
 
+La partie CAO est disponible sur Thingiverse:
+https://www.thingiverse.com/thing:2787132
+
 ## Prototype, version 1
 On utilise comme base un ESP32, alimenté par une batterie Li-Ion directement sur la carte comme celui-ci (<10€):
 https://www.ebay.fr/itm/WEMOS-ESP32-WiFi-and-Bluetooth-Battery-Development-Tool-AP-STA-AP-STA-for-Lua-/173252493037
